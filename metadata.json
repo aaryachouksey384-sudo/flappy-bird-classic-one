@@ -1,0 +1,6 @@
+{
+  "name": "Flappy Bird Classic",
+  "description": "A complete, standalone canvas-based Flappy Bird clone with authentic physics, procedural graphics, and Web Audio retro sounds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

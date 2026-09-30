@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
+  <title>Flappy Bird - Indian Dawn Temple Edition</title>
+  <meta name="description" content="A serene, Indian dawn temple Flappy Bird experience with majestic blue and pink palace pillars, an ornate winged bird, and procedural sunrise shikharas." />
+  <meta property="og:title" content="Flappy Bird - Indian Dawn Temple Edition" />
+  <meta property="og:description" content="A serene, Indian dawn temple Flappy Bird experience with majestic blue and pink palace pillars, an ornate winged bird, and procedural sunrise shikharas." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    body {
+      background: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      height: 100vh;
+      max-height: 720px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.8), 0 0 40px rgba(245, 158, 11, 0.2);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #18182f;
+      border: 1px solid rgba(251, 191, 36, 0.25);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    #sound-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 10;
+      background: rgba(20, 15, 35, 0.65);
+      color: #fbbf24;
+      border: 1.5px solid rgba(251, 191, 36, 0.6);
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.2s;
+      outline: none;
+      backdrop-filter: blur(4px);
+    }
+
+    #sound-btn:hover {
+      background: rgba(45, 25, 60, 0.85);
+      transform: scale(1.08);
+      box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+    }
+
+    #sound-btn:active {
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <button id="sound-btn" aria-label="Toggle Sound" title="Toggle Sound">🔊</button>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // --- Audio System (Web Audio API Synthesizer) ---
+      let audioCtx = null;
+      let soundEnabled = true;
+
+      function getAudioContext() {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            audioCtx = new AudioContext();
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      function playSound(type) {
+        if (!soundEnabled) return;
+        try {
+          const ctx = getAudioContext();
+          if (!ctx) return;
+          const now = ctx.currentTime;
+
+          if (type === 'jump') {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(340, now);
+            osc.frequency.exponentialRampToValueAtTime(780, now + 0.13);
+            gain.gain.setValueAtTime(0.28, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.13);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.14);
+          } else if (type === 'score') {
+            // Melodic temple chime
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc1.type = 'sine';
+            osc2.type = 'sine';
+            osc1.frequency.setValueAtTime(880, now); // A5
+            osc2.frequency.setValueAtTime(1320, now + 0.06); // E6
+            gain.gain.setValueAtTime(0.22, now);
+            gain.gain.setValueAtTime(0.25, now + 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.005, now + 0.35);
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.08);
+            osc2.start(now + 0.06);
+            osc2.stop(now + 0.35);
+          } else if (type === 'hit') {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(240, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.18);
+            gain.gain.setValueAtTime(0.35, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.19);
+          } else if (type === 'die') {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(450, now);
+            osc.frequency.exponentialRampToValueAtTime(70, now + 0.32);
+            gain.gain.setValueAtTime(0.28, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.33);
+          }
+        } catch (e) {
+          // Graceful fallback
+        }
+      }
+
+      const soundBtn = document.getElementById('sound-btn');
+      soundBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        soundEnabled = !soundEnabled;
+        soundBtn.textContent = soundEnabled ? '🔊' : '🔇';
+        if (soundEnabled) getAudioContext();
+      });
+
+      // --- Canvas Setup & High-DPI Scaling ---
+      const canvas = document.getElementById('game-canvas');
+      const ctx = canvas.getContext('2d');
+      const V_WIDTH = 400;
+      const V_HEIGHT = 650;
+      const GROUND_HEIGHT = 112;
+
+      function resizeCanvas() {
+        const container = document.getElementById('game-container');
+        const rect = container.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.resetTransform ? ctx.resetTransform() : ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(canvas.width / V_WIDTH, canvas.height / V_HEIGHT);
+      }
+      window.addEventListener('resize', resizeCanvas);
+
+      // --- Game State Constants ---
+      const STATE = {
+        START: 'START',
+        PLAYING: 'PLAYING',
+        GAMEOVER: 'GAMEOVER'
+      };
+
+      let gameState = STATE.START;
+      let score = 0;
+      let highScore = parseInt(localStorage.getItem('flappy_high_score') || '0', 10);
+      let frames = 0;
+      let groundX = 0;
+      let screenShake = 0;
+      let scoreScale = 1;
+
+      // Floating sacred water lamps (diyas)
+      const diyas = [
+        { x: 50, yOffset: 12, speed: 0.5, flameSize: 1 },
+        { x: 170, yOffset: 16, speed: 0.45, flameSize: 1.1 },
+        { x: 310, yOffset: 10, speed: 0.55, flameSize: 0.9 },
+        { x: 420, yOffset: 14, speed: 0.48, flameSize: 1.05 }
+      ];
+
+      // Distant morning flock of birds
+      const flock = [
+        { x: 40, y: 110, offset: 0 },
+        { x: 58, y: 122, offset: 0.8 },
+        { x: 74, y: 132, offset: 1.6 },
+        { x: 54, y: 102, offset: 0.5 },
+        { x: 70, y: 96, offset: 1.2 }
+      ];
+
+      // --- Enhanced Bird with Expressive Feathered Wings ---
+      const bird = {
+        x: 100,
+        y: V_HEIGHT / 2 - 50,
+        radius: 15,
+        velocity: 0,
+        gravity: 0.36,
+        jumpPower: -6.6,
+        rotation: 0,
+        wingCycle: 0,
+        isFlapping: false,
+        flapTimer: 0,
+        reset() {
+          this.x = 100;
+          this.y = (V_HEIGHT - GROUND_HEIGHT) / 2 - 10;
+          this.velocity = 0;
+          this.rotation = 0;
+          this.wingCycle = 0;
+          this.isFlapping = false;
+          this.flapTimer = 0;
+        },
+        jump() {
+          this.velocity = this.jumpPower;
+          this.isFlapping = true;
+          this.flapTimer = 14;
+          playSound('jump');
+        },
+        update() {
+          if (gameState === STATE.START) {
+            // Gentle hovering sine wave
+            this.y = (V_HEIGHT - GROUND_HEIGHT) / 2 - 10 + Math.sin(frames * 0.08) * 8;
+            this.rotation = 0;
+            this.wingCycle = Math.sin(frames * 0.18);
+            return;
+          }
+
+          this.velocity += this.gravity;
+          this.y += this.velocity;
+
+          // Rotation based on velocity
+          if (this.velocity < 0) {
+            this.rotation = Math.max(-0.45, this.velocity * 0.07);
+          } else {
+            this.rotation = Math.min(1.4, this.rotation + 0.05);
+          }
+
+          // Dynamic Wing Articulation
+          if (this.flapTimer > 0) {
+            this.flapTimer--;
+            this.wingCycle = Math.sin(this.flapTimer * 0.65);
+          } else {
+            // Gliding/falling wing posture
+            this.wingCycle = Math.sin(frames * 0.1) * 0.25 - 0.2;
+          }
+
+          // Prevent flying off the top
+          if (this.y - this.radius < 0) {
+            this.y = this.radius;
+            this.velocity = 0;
+          }
+        },
+        draw() {
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          ctx.rotate(this.rotation);
+
+          // 1. Tail Feathers (Fanned out layered feathers)
+          ctx.save();
+          ctx.translate(-14, 2);
+          for (let i = -1; i <= 1; i++) {
+            ctx.save();
+            ctx.rotate(i * 0.25 - 0.1 + (this.wingCycle * 0.1));
+            const tailGrad = ctx.createLinearGradient(-10, 0, 0, 0);
+            tailGrad.addColorStop(0, '#f59e0b');
+            tailGrad.addColorStop(0.5, '#ec4899');
+            tailGrad.addColorStop(1, '#3b82f6');
+            ctx.fillStyle = tailGrad;
+            ctx.beginPath();
+            ctx.ellipse(-6, 0, 8, 3.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#451a03';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.restore();
+          }
+          ctx.restore();
+
+          // 2. Bird Body (Vibrant golden amber with warm dawn saffron gradient)
+          const bodyGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, 18);
+          bodyGrad.addColorStop(0, '#fffbeb');
+          bodyGrad.addColorStop(0.3, '#fef08a');
+          bodyGrad.addColorStop(0.65, '#f59e0b');
+          bodyGrad.addColorStop(1, '#d97706');
+
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 17, 14.5, 0, 0, Math.PI * 2);
+          ctx.fillStyle = bodyGrad;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#451a03';
+          ctx.stroke();
+
+          // Belly highlight (soft lotus glow)
+          ctx.beginPath();
+          ctx.ellipse(-1, 5, 11, 6.5, -0.1, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(254, 243, 199, 0.9)';
+          ctx.fill();
+
+          // Royal Kalgi / Head Crest Feathers
+          ctx.save();
+          ctx.translate(2, -14);
+          for (let c = -1; c <= 1; c++) {
+            ctx.save();
+            ctx.rotate(c * 0.3 - 0.2);
+            ctx.beginPath();
+            ctx.ellipse(0, -6, 2, 6, 0, 0, Math.PI * 2);
+            ctx.fillStyle = c === 0 ? '#ec4899' : '#3b82f6';
+            ctx.fill();
+            ctx.strokeStyle = '#451a03';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            // Tiny crest jewel dot on tip
+            ctx.beginPath();
+            ctx.arc(0, -11, 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fill();
+            ctx.restore();
+          }
+          ctx.restore();
+
+          // Rosy dawn cheek blush
+          ctx.beginPath();
+          ctx.ellipse(3, 4, 4.5, 3, 0, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.45)';
+          ctx.fill();
+
+          // 3. Multi-Layered Articulated Wing
+          // Wing pivot point
+          ctx.save();
+          ctx.translate(-4, 0);
+          const wingAngle = this.wingCycle * 0.75;
+          ctx.rotate(wingAngle);
+
+          // Flight Feathers (Primary feathers that spread during flap)
+          const featherColors = ['#2563eb', '#3b82f6', '#ec4899', '#f43f5e'];
+          for (let f = 0; f < 4; f++) {
+            ctx.save();
+            const fSpread = (f - 1.5) * 0.25;
+            ctx.rotate(-0.35 + fSpread);
+            ctx.translate(-6, 2 + f * 1.5);
+
+            // Individual feather gradient
+            const fGrad = ctx.createLinearGradient(-12, 0, 4, 0);
+            fGrad.addColorStop(0, '#ffffff');
+            fGrad.addColorStop(0.4, featherColors[f]);
+            fGrad.addColorStop(1, '#1e293b');
+
+            ctx.beginPath();
+            ctx.ellipse(-6, 0, 10, 4, -0.15, 0, Math.PI * 2);
+            ctx.fillStyle = fGrad;
+            ctx.fill();
+            ctx.strokeStyle = '#2d1b06';
+            ctx.lineWidth = 1.3;
+            ctx.stroke();
+
+            // Feather spine/quill line
+            ctx.beginPath();
+            ctx.moveTo(-13, 0);
+            ctx.lineTo(2, 0);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Wing Covert Base (Upper wing plumage pad)
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 9, 7.5, -0.2, 0, Math.PI * 2);
+          const covertGrad = ctx.createLinearGradient(-6, -6, 6, 6);
+          covertGrad.addColorStop(0, '#fef08a');
+          covertGrad.addColorStop(0.5, '#f472b6');
+          covertGrad.addColorStop(1, '#3b82f6');
+          ctx.fillStyle = covertGrad;
+          ctx.fill();
+          ctx.strokeStyle = '#451a03';
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+
+          // Wing decorative lotus gold accent
+          ctx.beginPath();
+          ctx.arc(0, 0, 4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+          ctx.fill();
+
+          ctx.restore(); // restore wing
+
+          // 4. Expressive Eye
+          ctx.beginPath();
+          ctx.ellipse(7, -5, 6.2, 6.2, 0, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = '#451a03';
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+
+          // Eye Iris & Pupil
+          ctx.beginPath();
+          ctx.arc(8.8, -5, 3.2, 0, Math.PI * 2);
+          ctx.fillStyle = '#1e1b4b';
+          ctx.fill();
+
+          // Dual catchlight reflections
+          ctx.beginPath();
+          ctx.arc(7.8, -6.5, 1.4, 0, Math.PI * 2);
+          ctx.arc(10, -4, 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+
+          // Delicate eyebrow
+          ctx.beginPath();
+          ctx.arc(7, -9, 5, Math.PI * 1.15, Math.PI * 1.85);
+          ctx.strokeStyle = '#78350f';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // 5. Beak (Golden orange curved beak with pleasant smile)
+          ctx.beginPath();
+          ctx.moveTo(11, -3);
+          ctx.quadraticCurveTo(18, -2, 22, 2);
+          ctx.quadraticCurveTo(17, 5, 11, 7);
+          ctx.closePath();
+          const beakGrad = ctx.createLinearGradient(11, 0, 22, 0);
+          beakGrad.addColorStop(0, '#f59e0b');
+          beakGrad.addColorStop(1, '#ea580c');
+          ctx.fillStyle = beakGrad;
+          ctx.fill();
+          ctx.strokeStyle = '#451a03';
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+
+          // Beak seam line
+          ctx.beginPath();
+          ctx.moveTo(13, 2);
+          ctx.lineTo(21, 2);
+          ctx.strokeStyle = '#451a03';
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+
+          ctx.restore();
+        }
+      };
+
+      // --- Blue & Pink Palace Pillars (Pipes) ---
+      const pipes = [];
+      const PIPE_WIDTH = 64;
+      const PIPE_LIP_WIDTH = 74;
+      const PIPE_LIP_HEIGHT = 28;
+      const PIPE_GAP = 140;
+      const PIPE_SPEED = 2.4;
+
+      function spawnPipe() {
+        const minHeight = 60;
+        const maxHeight = V_HEIGHT - GROUND_HEIGHT - PIPE_GAP - minHeight;
+        const topHeight = Math.floor(minHeight + Math.random() * (maxHeight - minHeight));
+        pipes.push({
+          x: V_WIDTH + 10,
+          topHeight: topHeight,
+          bottomY: topHeight + PIPE_GAP,
+          passed: false
+        });
+      }
+
+      function drawPalacePillar(x, y, width, height, isTop) {
+        // --- 1. Pillar Shaft (Rich Royal Azure Blue with Cyan & Pink Fluting) ---
+        const shaftGrad = ctx.createLinearGradient(x, 0, x + width, 0);
+        shaftGrad.addColorStop(0, '#1e3a8a');    // Deep royal blue shadow
+        shaftGrad.addColorStop(0.18, '#3b82f6'); // Bright cobalt blue
+        shaftGrad.addColorStop(0.45, '#60a5fa'); // Cyan-blue reflection
+        shaftGrad.addColorStop(0.75, '#2563eb'); // Lapis blue
+        shaftGrad.addColorStop(1, '#0f172a');    // Dark navy depth
+
+        ctx.fillStyle = shaftGrad;
+        ctx.fillRect(x, y, width, height);
+
+        // Fluted column grooves (Blue & Pink architectural stripes)
+        const flutes = 5;
+        const step = width / flutes;
+        for (let i = 0; i < flutes; i++) {
+          const fx = x + i * step + 2;
+          // Pink fluting pin-stripe
+          ctx.fillStyle = 'rgba(244, 114, 182, 0.4)';
+          ctx.fillRect(fx + 3, y, 2.5, height);
+          // Highlight shimmer line
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+          ctx.fillRect(fx + 1, y, 1.2, height);
+          // Shadow groove
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+          ctx.fillRect(fx + step - 2, y, 1.5, height);
+        }
+
+        // Shaft specular highlight beam
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(x + 7, y, 4, height);
+
+        // Shaft Outer Border
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.4;
+        ctx.strokeRect(x, y, width, height);
+
+        // Shaft Horizontal Pink & Gold Trim Bands
+        const bandInterval = 48;
+        const startBandY = (y % bandInterval);
+        for (let by = y + 16; by < y + height - 12; by += bandInterval) {
+          ctx.fillStyle = '#f472b6'; // Rose pink band
+          ctx.fillRect(x, by, width, 5);
+          ctx.fillStyle = '#fbbf24'; // Gold filigree center
+          ctx.fillRect(x, by + 1.5, width, 2);
+          ctx.strokeStyle = '#831843';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, by, width, 5);
+        }
+
+        // --- 2. Pillar Capital / Collar Lip (Lotus Rose Pink with Scalloped Petals) ---
+        const lipX = x - (PIPE_LIP_WIDTH - width) / 2;
+        const lipY = isTop ? y + height - PIPE_LIP_HEIGHT : y;
+
+        // Pink Lotus Gradient
+        const lipGrad = ctx.createLinearGradient(lipX, 0, lipX + PIPE_LIP_WIDTH, 0);
+        lipGrad.addColorStop(0, '#9d174d');    // Deep magenta shadow
+        lipGrad.addColorStop(0.18, '#db2777'); // Vivid rose pink
+        lipGrad.addColorStop(0.45, '#f472b6'); // Radiant lotus petal pink
+        lipGrad.addColorStop(0.7, '#fbcfe8');  // Pale petal highlight
+        lipGrad.addColorStop(0.85, '#ec4899'); // Fuchsia
+        lipGrad.addColorStop(1, '#831843');    // Deep berry
+
+        ctx.fillStyle = lipGrad;
+        ctx.fillRect(lipX, lipY, PIPE_LIP_WIDTH, PIPE_LIP_HEIGHT);
+
+        // Golden Trim Bands on Capital Lip (Top & Bottom borders)
+        const goldBandH = 4;
+        const goldY1 = lipY;
+        const goldY2 = lipY + PIPE_LIP_HEIGHT - goldBandH;
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(lipX, goldY1, PIPE_LIP_WIDTH, goldBandH);
+        ctx.fillRect(lipX, goldY2, PIPE_LIP_WIDTH, goldBandH);
+
+        // Scalloped Lotus Petal Edge along collar
+        const petalCount = 7;
+        const pStep = PIPE_LIP_WIDTH / petalCount;
+        ctx.fillStyle = '#fdf2f8';
+        const petalY = isTop ? lipY + PIPE_LIP_HEIGHT : lipY;
+        for (let p = 0; p < petalCount; p++) {
+          const px = lipX + p * pStep + pStep / 2;
+          ctx.beginPath();
+          ctx.arc(px, petalY, pStep / 2.2, 0, Math.PI, !isTop);
+          ctx.fillStyle = '#fbcfe8';
+          ctx.fill();
+          ctx.strokeStyle = '#9d174d';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+
+        // Central Royal Azure Jewel on Collar
+        const jewelCenterX = lipX + PIPE_LIP_WIDTH / 2;
+        const jewelCenterY = lipY + PIPE_LIP_HEIGHT / 2;
+
+        // Jewel Gold Setting
+        ctx.beginPath();
+        ctx.arc(jewelCenterX, jewelCenterY, 7.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+        ctx.strokeStyle = '#78350f';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // Sapphire Gem
+        ctx.beginPath();
+        ctx.arc(jewelCenterX, jewelCenterY, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#2563eb';
+        ctx.fill();
+        // Gem light facet
+        ctx.beginPath();
+        ctx.arc(jewelCenterX - 1.5, jewelCenterY - 1.5, 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = '#93c5fd';
+        ctx.fill();
+
+        // Capital Lip Specular Highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(lipX + 7, lipY, 4, PIPE_LIP_HEIGHT);
+
+        // Capital Lip Outer Border
+        ctx.strokeStyle = '#4a044e';
+        ctx.lineWidth = 2.4;
+        ctx.strokeRect(lipX, lipY, PIPE_LIP_WIDTH, PIPE_LIP_HEIGHT);
+      }
+
+      function updatePipes() {
+        if (gameState !== STATE.PLAYING) return;
+
+        if (frames % 100 === 0) {
+          spawnPipe();
+        }
+
+        for (let i = pipes.length - 1; i >= 0; i--) {
+          const p = pipes[i];
+          p.x -= PIPE_SPEED;
+
+          if (!p.passed && p.x + PIPE_WIDTH < bird.x) {
+            p.passed = true;
+            score++;
+            scoreScale = 1.35;
+            playSound('score');
+          }
+
+          if (p.x + PIPE_LIP_WIDTH < -20) {
+            pipes.splice(i, 1);
+          }
+        }
+      }
+
+      function drawPipes() {
+        for (const p of pipes) {
+          // Top pillar
+          drawPalacePillar(p.x, 0, PIPE_WIDTH, p.topHeight, true);
+          // Bottom pillar
+          const bottomHeight = V_HEIGHT - GROUND_HEIGHT - p.bottomY;
+          drawPalacePillar(p.x, p.bottomY, PIPE_WIDTH, bottomHeight, false);
+        }
+      }
+
+      // --- Precise Collision Detection ---
+      function checkCollisions() {
+        if (gameState !== STATE.PLAYING) return;
+
+        // Ground collision
+        if (bird.y + bird.radius >= V_HEIGHT - GROUND_HEIGHT) {
+          bird.y = V_HEIGHT - GROUND_HEIGHT - bird.radius;
+          triggerGameOver();
+          return;
+        }
+
+        // Ceiling collision
+        if (bird.y - bird.radius <= 0) {
+          bird.y = bird.radius;
+          bird.velocity = 0;
+        }
+
+        const hitRadius = bird.radius - 2.5;
+
+        for (const p of pipes) {
+          const topCollarY = p.topHeight - PIPE_LIP_HEIGHT;
+          const lipOffset = (PIPE_LIP_WIDTH - PIPE_WIDTH) / 2;
+
+          // Top pipe collision: shaft & collar
+          if (circleRectCollide(bird.x, bird.y, hitRadius, p.x, 0, PIPE_WIDTH, topCollarY) ||
+              circleRectCollide(bird.x, bird.y, hitRadius, p.x - lipOffset, topCollarY, PIPE_LIP_WIDTH, PIPE_LIP_HEIGHT)) {
+            triggerGameOver();
+            return;
+          }
+
+          // Bottom pipe collision: collar & shaft
+          const bottomCollarY = p.bottomY;
+          const bottomShaftY = p.bottomY + PIPE_LIP_HEIGHT;
+          const bottomShaftHeight = V_HEIGHT - GROUND_HEIGHT - bottomShaftY;
+
+          if (circleRectCollide(bird.x, bird.y, hitRadius, p.x - lipOffset, bottomCollarY, PIPE_LIP_WIDTH, PIPE_LIP_HEIGHT) ||
+              circleRectCollide(bird.x, bird.y, hitRadius, p.x, bottomShaftY, PIPE_WIDTH, bottomShaftHeight)) {
+            triggerGameOver();
+            return;
+          }
+        }
+      }
+
+      function circleRectCollide(cx, cy, r, rx, ry, rw, rh) {
+        const closestX = Math.max(rx, Math.min(cx, rx + rw));
+        const closestY = Math.max(ry, Math.min(cy, ry + rh));
+        const distX = cx - closestX;
+        const distY = cy - closestY;
+        return (distX * distX + distY * distY) < (r * r);
+      }
+
+      function triggerGameOver() {
+        if (gameState === STATE.GAMEOVER) return;
+        gameState = STATE.GAMEOVER;
+        screenShake = 14;
+        playSound('hit');
+        setTimeout(() => playSound('die'), 120);
+
+        if (score > highScore) {
+          highScore = score;
+          try {
+            localStorage.setItem('flappy_high_score', highScore.toString());
+          } catch (e) {}
+        }
+      }
+
+      // --- Background: Classic Indian Dawn Timing & Ancient Temple Complex ---
+      function drawTempleShikhara(bx, baseWidth, spireHeight, color, hasFlag) {
+        ctx.save();
+        ctx.fillStyle = color;
+
+        // Stepped / Tiered Pyramid Shikhara Spire
+        const tiers = 7;
+        const tierHeight = (spireHeight - 24) / tiers;
+        let currentY = V_HEIGHT - GROUND_HEIGHT - 35;
+
+        for (let t = 0; t < tiers; t++) {
+          const tWidth = baseWidth * (1 - (t * 0.1));
+          const tx = bx - tWidth / 2;
+          currentY -= tierHeight;
+          ctx.beginPath();
+          ctx.roundRect(tx, currentY, tWidth, tierHeight + 1, 2);
+          ctx.fill();
+        }
+
+        // Amalaka (Ribbed crown disc)
+        const crownWidth = baseWidth * 0.32;
+        ctx.beginPath();
+        ctx.ellipse(bx, currentY - 5, crownWidth / 2, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Kalasha (Sacred Pot & Spire Finial)
+        ctx.beginPath();
+        ctx.arc(bx, currentY - 11, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(bx, currentY - 14);
+        ctx.lineTo(bx - 1.5, currentY - 8);
+        ctx.lineTo(bx + 1.5, currentY - 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Spire tip needle
+        ctx.beginPath();
+        ctx.moveTo(bx, currentY - 11);
+        ctx.lineTo(bx, currentY - 22);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Saffron Sacred Dhwaja (Temple Flag fluttering in the dawn breeze)
+        if (hasFlag) {
+          const flagWave = Math.sin(frames * 0.08 + bx) * 4;
+          ctx.fillStyle = '#ea580c';
+          ctx.beginPath();
+          ctx.moveTo(bx, currentY - 21);
+          ctx.lineTo(bx + 16 + flagWave, currentY - 17);
+          ctx.lineTo(bx, currentY - 13);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      function drawDomeChattri(cx, baseWidth, color) {
+        ctx.save();
+        ctx.fillStyle = color;
+        const groundLevel = V_HEIGHT - GROUND_HEIGHT - 35;
+        const colH = 32;
+
+        // Chattri Pavilion Dome
+        ctx.beginPath();
+        ctx.arc(cx, groundLevel - colH, baseWidth / 2, Math.PI, 0, false);
+        ctx.fill();
+
+        // Finial
+        ctx.beginPath();
+        ctx.arc(cx, groundLevel - colH - baseWidth / 2 - 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Chattri Pillars
+        ctx.fillRect(cx - baseWidth / 2 + 2, groundLevel - colH, 3, colH);
+        ctx.fillRect(cx + baseWidth / 2 - 5, groundLevel - colH, 3, colH);
+        ctx.fillRect(cx - 1.5, groundLevel - colH, 3, colH);
+
+        ctx.restore();
+      }
+
+      function drawPalmSilhouette(px, py, scale, color) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3 * scale;
+
+        // Slanted curved trunk
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.quadraticCurveTo(px + 8 * scale, py - 40 * scale, px + 14 * scale, py - 75 * scale);
+        ctx.stroke();
+
+        // Palm Fronds
+        const topX = px + 14 * scale;
+        const topY = py - 75 * scale;
+        const fronds = 7;
+        for (let i = 0; i < fronds; i++) {
+          const angle = -Math.PI * 0.8 + (i * Math.PI * 0.8 / (fronds - 1));
+          ctx.beginPath();
+          ctx.moveTo(topX, topY);
+          const endX = topX + Math.cos(angle) * 28 * scale;
+          const endY = topY + Math.sin(angle) * 20 * scale + 8 * scale;
+          ctx.quadraticCurveTo(topX + Math.cos(angle) * 15 * scale, topY - 10 * scale, endX, endY);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawBackground() {
+        const horizonY = V_HEIGHT - GROUND_HEIGHT - 35;
+
+        // 1. Classic Indian Dawn Sky Gradient (Ushakaal / Pratahkal)
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+        skyGrad.addColorStop(0, '#15102a');    // Deep zenith twilight indigo
+        skyGrad.addColorStop(0.2, '#2d1b4e');  // Royal mystic purple
+        skyGrad.addColorStop(0.42, '#701a4e'); // Dawn plum rose
+        skyGrad.addColorStop(0.62, '#b42b32'); // Crimson aura
+        skyGrad.addColorStop(0.78, '#e0581a'); // Saffron orange
+        skyGrad.addColorStop(0.9, '#f59e0b');  // Golden sunrise amber
+        skyGrad.addColorStop(1, '#fed7aa');    // Soft morning mist horizon
+
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, V_WIDTH, horizonY + 36);
+
+        // 2. Sacred Rising Sun (Radiant dawn orb at the horizon)
+        const sunX = 265;
+        const sunY = horizonY - 28;
+        const sunRadius = 45;
+
+        // Sun Corona / Morning Glow
+        const sunAura = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 150);
+        sunAura.addColorStop(0, 'rgba(254, 240, 138, 0.7)');
+        sunAura.addColorStop(0.25, 'rgba(251, 146, 60, 0.45)');
+        sunAura.addColorStop(0.6, 'rgba(244, 63, 94, 0.18)');
+        sunAura.addColorStop(1, 'rgba(254, 215, 170, 0)');
+        ctx.fillStyle = sunAura;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 150, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Sun Disc
+        const sunDiscGrad = ctx.createRadialGradient(sunX, sunY - 4, 4, sunX, sunY, sunRadius);
+        sunDiscGrad.addColorStop(0, '#ffffff');
+        sunDiscGrad.addColorStop(0.35, '#fef08a');
+        sunDiscGrad.addColorStop(0.75, '#fb923c');
+        sunDiscGrad.addColorStop(1, '#f43f5e');
+        ctx.fillStyle = sunDiscGrad;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Subtle radiating dawn light beams
+        ctx.save();
+        ctx.translate(sunX, sunY);
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.05)';
+        for (let r = 0; r < 8; r++) {
+          ctx.rotate(Math.PI / 8);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-25, -280);
+          ctx.lineTo(25, -280);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // 3. Morning Birds Flying Across the Sky (Flock)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(40, 20, 60, 0.75)';
+        ctx.lineWidth = 1.8;
+        for (const b of flock) {
+          const bx = (b.x + frames * 0.4) % (V_WIDTH + 80) - 40;
+          const wingF = Math.sin(frames * 0.15 + b.offset) * 4;
+          ctx.beginPath();
+          ctx.moveTo(bx - 6, b.y + wingF);
+          ctx.quadraticCurveTo(bx - 2, b.y - 2, bx, b.y);
+          ctx.quadraticCurveTo(bx + 2, b.y - 2, bx + 6, b.y + wingF);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // 4. Distant Mist & Temple Complex Layer 1 (Far Silhouettes in Soft Violet Mist)
+        const farColor = 'rgba(88, 28, 76, 0.45)';
+        drawTempleShikhara(60, 42, 110, farColor, true);
+        drawTempleShikhara(150, 36, 85, farColor, false);
+        drawDomeChattri(205, 34, farColor);
+        drawTempleShikhara(340, 48, 125, farColor, true);
+        drawPalmSilhouette(395, horizonY, 0.75, farColor);
+
+        // Distant soft morning mist band
+        const mistGrad1 = ctx.createLinearGradient(0, horizonY - 60, 0, horizonY);
+        mistGrad1.addColorStop(0, 'rgba(254, 215, 170, 0)');
+        mistGrad1.addColorStop(0.6, 'rgba(251, 146, 60, 0.25)');
+        mistGrad1.addColorStop(1, 'rgba(244, 114, 182, 0.4)');
+        ctx.fillStyle = mistGrad1;
+        ctx.fillRect(0, horizonY - 60, V_WIDTH, 60);
+
+        // 5. Midground Grand Indian Mandir Complex (Rich Plum & Warm Saffron Silhouette)
+        const midColor = 'rgba(50, 15, 45, 0.88)';
+        drawTempleShikhara(105, 54, 155, midColor, true);
+        drawDomeChattri(40, 42, midColor);
+        drawTempleShikhara(185, 44, 115, midColor, false);
+        drawDomeChattri(235, 36, midColor);
+        drawTempleShikhara(305, 58, 175, midColor, true);
+        drawPalmSilhouette(15, horizonY, 0.95, midColor);
+        drawPalmSilhouette(270, horizonY, 0.85, midColor);
+
+        // Mandapa Base / Temple Hall Wall
+        ctx.fillStyle = midColor;
+        ctx.fillRect(0, horizonY - 24, V_WIDTH, 24);
+
+        // Arched Jharokhas & Temple Doorways
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.45)'; // Dawn glow inside arches
+        for (let ax = 20; ax < V_WIDTH; ax += 46) {
+          ctx.beginPath();
+          ctx.arc(ax + 10, horizonY - 14, 7, Math.PI, 0, false);
+          ctx.lineTo(ax + 17, horizonY);
+          ctx.lineTo(ax + 3, horizonY);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // 6. Sacred Water / River Ghat Reflections
+        const riverY = horizonY;
+        const riverH = 35;
+        const waterGrad = ctx.createLinearGradient(0, riverY, 0, riverY + riverH);
+        waterGrad.addColorStop(0, 'rgba(245, 158, 11, 0.7)');
+        waterGrad.addColorStop(0.35, 'rgba(219, 39, 119, 0.55)');
+        waterGrad.addColorStop(0.75, 'rgba(59, 130, 246, 0.45)');
+        waterGrad.addColorStop(1, 'rgba(30, 27, 75, 0.9)');
+
+        ctx.fillStyle = waterGrad;
+        ctx.fillRect(0, riverY, V_WIDTH, riverH);
+
+        // Water horizontal shimmer ripples
+        ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 6; i++) {
+          const ry = riverY + 5 + i * 5;
+          const rxOffset = (frames * (0.8 + i * 0.2)) % 60;
+          ctx.beginPath();
+          ctx.moveTo(0, ry);
+          for (let rx = -rxOffset; rx < V_WIDTH + 60; rx += 45) {
+            ctx.lineTo(rx + 15, ry);
+            ctx.moveTo(rx + 25, ry);
+          }
+          ctx.stroke();
+        }
+
+        // 7. Drifting Sacred Diyas (Floating Lotus Lamps with gentle flames)
+        for (const diya of diyas) {
+          if (gameState !== STATE.GAMEOVER) {
+            diya.x -= diya.speed;
+            if (diya.x < -30) diya.x = V_WIDTH + 30;
+          }
+          const dy = riverY + diya.yOffset;
+
+          // Water golden reflection halo
+          ctx.beginPath();
+          ctx.ellipse(diya.x, dy + 4, 9, 3, 0, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
+          ctx.fill();
+
+          // Clay Diya Leaf Boat
+          ctx.beginPath();
+          ctx.ellipse(diya.x, dy, 7, 3, 0, 0, Math.PI);
+          ctx.fillStyle = '#92400e';
+          ctx.fill();
+
+          // Golden Flame
+          const fFlicker = Math.sin(frames * 0.25 + diya.x) * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(diya.x - 2.5, dy);
+          ctx.quadraticCurveTo(diya.x + fFlicker, dy - 8 * diya.flameSize, diya.x, dy - 10 * diya.flameSize);
+          ctx.quadraticCurveTo(diya.x - fFlicker, dy - 8 * diya.flameSize, diya.x + 2.5, dy);
+          ctx.closePath();
+          ctx.fillStyle = '#fef08a';
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(diya.x, dy - 2, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#f59e0b';
+          ctx.fill();
+        }
+      }
+
+      // --- Ground: Carved Terracotta & Sandstone Ghat Platform ---
+      function drawGround() {
+        const groundY = V_HEIGHT - GROUND_HEIGHT;
+
+        if (gameState !== STATE.GAMEOVER) {
+          groundX = (groundX + PIPE_SPEED) % 24;
+        }
+
+        // Sandstone Ghat Structure
+        const stoneGrad = ctx.createLinearGradient(0, groundY, 0, V_HEIGHT);
+        stoneGrad.addColorStop(0, '#92400e');  // Warm terracotta
+        stoneGrad.addColorStop(0.3, '#78350f'); // Sandstone shadow
+        stoneGrad.addColorStop(0.7, '#451a03'); // Deep burnt umber
+        stoneGrad.addColorStop(1, '#270e02');   // Ancient stone foundation
+
+        ctx.fillStyle = stoneGrad;
+        ctx.fillRect(0, groundY, V_WIDTH, GROUND_HEIGHT);
+
+        // Top Carved Lotus Frieze Trim
+        const friezeH = 16;
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(0, groundY, V_WIDTH, friezeH);
+
+        // Gold Trim Border Lines
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(V_WIDTH, groundY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, groundY + friezeH);
+        ctx.lineTo(V_WIDTH, groundY + friezeH);
+        ctx.stroke();
+
+        // Scrolling Carved Mandir Motif along frieze
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, groundY, V_WIDTH, friezeH);
+        ctx.clip();
+
+        const patternW = 24;
+        const startP = -groundX - 24;
+        for (let px = startP; px < V_WIDTH + 30; px += patternW) {
+          // Lotus Arch
+          ctx.beginPath();
+          ctx.arc(px + 12, groundY + friezeH, 9, Math.PI, 0, false);
+          ctx.fillStyle = '#d97706';
+          ctx.fill();
+          ctx.strokeStyle = '#fef08a';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          // Center jewel dot
+          ctx.beginPath();
+          ctx.arc(px + 12, groundY + friezeH - 5, 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#ec4899';
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Carved Stone Paving Blocks
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.15)';
+        ctx.lineWidth = 1.5;
+        for (let row = 0; row < 4; row++) {
+          const rowY = groundY + friezeH + 8 + row * 22;
+          ctx.beginPath();
+          ctx.moveTo(0, rowY);
+          ctx.lineTo(V_WIDTH, rowY);
+          ctx.stroke();
+
+          const blockOffset = ((row % 2) * 25 - groundX * 0.8) % 50;
+          for (let bx = blockOffset - 50; bx < V_WIDTH + 50; bx += 50) {
+            ctx.beginPath();
+            ctx.moveTo(bx, rowY);
+            ctx.lineTo(bx, rowY + 22);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // --- UI & Overlays ---
+      const restartButton = {
+        x: V_WIDTH / 2 - 80,
+        y: 430,
+        width: 160,
+        height: 50
+      };
+
+      function drawScore() {
+        if (gameState === STATE.PLAYING) {
+          ctx.save();
+          ctx.translate(V_WIDTH / 2, 70);
+          ctx.scale(scoreScale, scoreScale);
+          ctx.font = '900 50px "Impact", "Arial Black", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // Glow shadow
+          ctx.shadowColor = 'rgba(251, 191, 36, 0.8)';
+          ctx.shadowBlur = 12;
+
+          // Black thick outline
+          ctx.lineWidth = 8;
+          ctx.strokeStyle = '#1e1b4b';
+          ctx.strokeText(score.toString(), 0, 0);
+
+          // Golden dawn fill
+          const scoreGrad = ctx.createLinearGradient(0, -25, 0, 25);
+          scoreGrad.addColorStop(0, '#ffffff');
+          scoreGrad.addColorStop(0.5, '#fef08a');
+          scoreGrad.addColorStop(1, '#f59e0b');
+          ctx.fillStyle = scoreGrad;
+          ctx.fillText(score.toString(), 0, 0);
+          ctx.restore();
+
+          if (scoreScale > 1) {
+            scoreScale = Math.max(1, scoreScale - 0.05);
+          }
+        }
+      }
+
+      function drawStartScreen() {
+        if (gameState !== STATE.START) return;
+
+        ctx.save();
+
+        ctx.textAlign = 'center';
+        ctx.font = '900 40px "Impact", "Arial Black", sans-serif';
+
+        // Title 3D Drop Shadow
+        ctx.fillStyle = '#1c1032';
+        ctx.fillText('FLAPPY BIRD', V_WIDTH / 2 + 3, 143);
+
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#2e1065';
+        ctx.strokeText('FLAPPY BIRD', V_WIDTH / 2, 140);
+
+        // Radiant Saffron & Gold Dawn Title
+        const titleGrad = ctx.createLinearGradient(0, 110, 0, 145);
+        titleGrad.addColorStop(0, '#ffffff');
+        titleGrad.addColorStop(0.35, '#fef08a');
+        titleGrad.addColorStop(0.7, '#fbbf24');
+        titleGrad.addColorStop(1, '#ec4899');
+        ctx.fillStyle = titleGrad;
+        ctx.fillText('FLAPPY BIRD', V_WIDTH / 2, 140);
+
+        // Sanskrit / Indian Temple Dawn Subtitle
+        ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = '#fde68a';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 6;
+        ctx.fillText('✦ TEMPLE DAWN EDITION ✦', V_WIDTH / 2, 172);
+
+        // Instruction Box (Ornate Glass Card with Gold Border)
+        const boxX = 55;
+        const boxY = 370;
+        const boxW = 290;
+        const boxH = 110;
+
+        ctx.fillStyle = 'rgba(20, 15, 38, 0.65)';
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxW, boxH, 16);
+        ctx.fill();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Lotus Hand / Tap Icon
+        ctx.font = '30px sans-serif';
+        ctx.fillText('🪶', V_WIDTH / 2, boxY + 36);
+
+        // Subtitle Text
+        ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Press Space or Tap to Fly', V_WIDTH / 2, boxY + 72);
+
+        // High Score
+        if (highScore > 0) {
+          ctx.font = '600 14px sans-serif';
+          ctx.fillStyle = '#fef08a';
+          ctx.fillText(`Best: ${highScore}`, V_WIDTH / 2, boxY + 95);
+        }
+
+        ctx.restore();
+      }
+
+      function drawGameOver() {
+        if (gameState !== STATE.GAMEOVER) return;
+
+        ctx.save();
+
+        // Dawn twilight backdrop overlay
+        ctx.fillStyle = 'rgba(15, 10, 25, 0.5)';
+        ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+        // "GAME OVER" Text
+        ctx.textAlign = 'center';
+        ctx.font = '900 46px "Impact", "Arial Black", sans-serif';
+
+        ctx.fillStyle = '#1e102a';
+        ctx.fillText('GAME OVER', V_WIDTH / 2 + 3, 143);
+
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#3b0764';
+        ctx.strokeText('GAME OVER', V_WIDTH / 2, 140);
+
+        const goGrad = ctx.createLinearGradient(0, 110, 0, 145);
+        goGrad.addColorStop(0, '#fde047');
+        goGrad.addColorStop(0.5, '#f43f5e');
+        goGrad.addColorStop(1, '#9333ea');
+        ctx.fillStyle = goGrad;
+        ctx.fillText('GAME OVER', V_WIDTH / 2, 140);
+
+        // Scoreboard Card (Royal Sandstone & Lotus Trim)
+        const cardX = 45;
+        const cardY = 185;
+        const cardW = 310;
+        const cardH = 210;
+
+        // Card Drop Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.beginPath();
+        ctx.roundRect(cardX + 4, cardY + 5, cardW, cardH, 16);
+        ctx.fill();
+
+        // Card Body
+        const boardGrad = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH);
+        boardGrad.addColorStop(0, '#2e1065');
+        boardGrad.addColorStop(0.5, '#3b0764');
+        boardGrad.addColorStop(1, '#1e1b4b');
+        ctx.fillStyle = boardGrad;
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+        ctx.fill();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = '#fbbf24'; // Gold filigree border
+        ctx.stroke();
+
+        // Inner Card Inset
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.roundRect(cardX + 12, cardY + 12, cardW - 24, cardH - 24, 10);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Medal Section
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillStyle = '#fef08a';
+        ctx.textAlign = 'center';
+        ctx.fillText('MEDAL', cardX + 68, cardY + 45);
+
+        const medalX = cardX + 68;
+        const medalY = cardY + 105;
+        drawMedal(medalX, medalY, score);
+
+        // Score Section
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillStyle = '#fbcfe8';
+        ctx.fillText('SCORE', cardX + cardW - 30, cardY + 45);
+
+        ctx.font = '900 32px "Impact", "Arial Black", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(score.toString(), cardX + cardW - 30, cardY + 80);
+
+        // Best Score
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillStyle = '#fde68a';
+        ctx.fillText('BEST', cardX + cardW - 30, cardY + 120);
+
+        ctx.font = '900 32px "Impact", "Arial Black", sans-serif';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText(highScore.toString(), cardX + cardW - 30, cardY + 155);
+
+        // "NEW" Badge
+        if (score > 0 && score >= highScore) {
+          ctx.save();
+          ctx.translate(cardX + cardW - 100, cardY + 130);
+          ctx.rotate(-0.15);
+          ctx.fillStyle = '#ec4899';
+          ctx.beginPath();
+          ctx.roundRect(-24, -10, 48, 20, 4);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '900 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('NEW!', 0, 1);
+          ctx.restore();
+        }
+
+        // Restart Button
+        const btn = restartButton;
+        const btnGrad = ctx.createLinearGradient(btn.x, btn.y, btn.x, btn.y + btn.height);
+        btnGrad.addColorStop(0, '#f59e0b');
+        btnGrad.addColorStop(0.5, '#ea580c');
+        btnGrad.addColorStop(1, '#db2777');
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.beginPath();
+        ctx.roundRect(btn.x + 2, btn.y + 4, btn.width, btn.height, 14);
+        ctx.fill();
+
+        ctx.fillStyle = btnGrad;
+        ctx.beginPath();
+        ctx.roundRect(btn.x, btn.y, btn.width, btn.height, 14);
+        ctx.fill();
+
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#fef08a';
+        ctx.stroke();
+
+        ctx.font = '900 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('RESTART ↺', btn.x + btn.width / 2, btn.y + btn.height / 2);
+
+        ctx.font = '500 13px sans-serif';
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillText('Tap button or press Space to retry', V_WIDTH / 2, btn.y + btn.height + 26);
+
+        ctx.restore();
+      }
+
+      function drawMedal(x, y, currentScore) {
+        ctx.save();
+
+        let medalColor1 = '#94a3b8';
+        let medalColor2 = '#64748b';
+        let rimColor = '#475569';
+        let hasMedal = false;
+
+        if (currentScore >= 40) {
+          // Royal Ruby / Platinum
+          medalColor1 = '#fbcfe8';
+          medalColor2 = '#ec4899';
+          rimColor = '#be185d';
+          hasMedal = true;
+        } else if (currentScore >= 30) {
+          // Surya Gold
+          medalColor1 = '#fef08a';
+          medalColor2 = '#eab308';
+          rimColor = '#ca8a04';
+          hasMedal = true;
+        } else if (currentScore >= 20) {
+          // Chandra Silver
+          medalColor1 = '#f1f5f9';
+          medalColor2 = '#94a3b8';
+          rimColor = '#64748b';
+          hasMedal = true;
+        } else if (currentScore >= 10) {
+          // Bronze
+          medalColor1 = '#fed7aa';
+          medalColor2 = '#ea580c';
+          rimColor = '#c2410c';
+          hasMedal = true;
+        }
+
+        if (hasMedal) {
+          const grad = ctx.createRadialGradient(x - 5, y - 5, 2, x, y, 26);
+          grad.addColorStop(0, medalColor1);
+          grad.addColorStop(1, medalColor2);
+
+          ctx.beginPath();
+          ctx.arc(x, y, 26, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = rimColor;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(x, y, 18, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Sparkle
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(x - 8, y - 8, 3, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.arc(x, y, 26, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+          ctx.stroke();
+
+          ctx.font = '24px sans-serif';
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.5)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🪷', x, y);
+        }
+
+        ctx.restore();
+      }
+
+      // --- Game Actions & Input Handling ---
+      function handleAction() {
+        getAudioContext();
+
+        if (gameState === STATE.START) {
+          gameState = STATE.PLAYING;
+          bird.jump();
+        } else if (gameState === STATE.PLAYING) {
+          bird.jump();
+        } else if (gameState === STATE.GAMEOVER) {
+          resetGame();
+        }
+      }
+
+      function resetGame() {
+        gameState = STATE.PLAYING;
+        score = 0;
+        scoreScale = 1;
+        pipes.length = 0;
+        bird.reset();
+        bird.jump();
+      }
+
+      // Keyboard Controls
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          handleAction();
+        } else if (e.code === 'Enter' || e.code === 'KeyR') {
+          if (gameState === STATE.GAMEOVER) {
+            e.preventDefault();
+            resetGame();
+          }
+        }
+      });
+
+      // Pointer & Touch Controls
+      canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+
+        if (gameState === STATE.GAMEOVER) {
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = V_WIDTH / rect.width;
+          const scaleY = V_HEIGHT / rect.height;
+          const clickX = (e.clientX - rect.left) * scaleX;
+          const clickY = (e.clientY - rect.top) * scaleY;
+
+          const btn = restartButton;
+          if (
+            clickX >= btn.x &&
+            clickX <= btn.x + btn.width &&
+            clickY >= btn.y &&
+            clickY <= btn.y + btn.height
+          ) {
+            resetGame();
+            return;
+          }
+        }
+
+        handleAction();
+      });
+
+      window.addEventListener('touchstart', (e) => {
+        if (e.target === canvas) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
+      // --- Main Game Loop ---
+      function gameLoop() {
+        frames++;
+
+        bird.update();
+        updatePipes();
+        checkCollisions();
+
+        ctx.save();
+        if (screenShake > 0) {
+          const shakeX = (Math.random() - 0.5) * screenShake;
+          const shakeY = (Math.random() - 0.5) * screenShake;
+          ctx.translate(shakeX, shakeY);
+          screenShake *= 0.88;
+          if (screenShake < 0.2) screenShake = 0;
+        }
+
+        ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+        drawBackground();
+        drawPipes();
+        drawGround();
+        bird.draw();
+        drawScore();
+        drawStartScreen();
+        drawGameOver();
+
+        ctx.restore();
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Initial Canvas setup and launch loop
+      resizeCanvas();
+      bird.reset();
+      requestAnimationFrame(gameLoop);
+    })();
+  </script>
+</body>
+</html>
